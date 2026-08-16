@@ -109,13 +109,113 @@ html, body {
   animation: fadeIn 0.2s ease forwards;
 }
 
-/* Background Architectural Lines Layer */
+/* Background Architectural Lines & Animated Light Layer */
 .dynamic-background-container {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 1;
   overflow: hidden;
+  background-color: var(--bg-primary); /* Gallery off-white background #F6F6F4 */
+}
+
+.particles-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Elegant Light Orbs Floating in Background */
+.light-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.65;
+  pointer-events: none;
+  transition: transform 1.2s var(--ease-editorial);
+  will-change: transform;
+}
+
+.light-orb.orb-1 {
+  width: 550px;
+  height: 550px;
+  top: -100px;
+  left: -100px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(235, 233, 226, 0.5) 50%, transparent 80%);
+  animation: floatOrb1 18s ease-in-out infinite alternate;
+}
+
+.light-orb.orb-2 {
+  width: 650px;
+  height: 650px;
+  bottom: -150px;
+  right: -100px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.9) 0%, rgba(228, 226, 218, 0.45) 50%, transparent 80%);
+  animation: floatOrb2 22s ease-in-out infinite alternate;
+}
+
+.light-orb.orb-3 {
+  width: 400px;
+  height: 400px;
+  top: 40%;
+  left: 35%;
+  background: radial-gradient(circle, rgba(200, 42, 30, 0.04) 0%, rgba(246, 246, 244, 0) 70%);
+  animation: floatOrb3 15s ease-in-out infinite alternate;
+}
+
+/* Moving Soft Light Beams Across Background */
+.light-beam {
+  position: absolute;
+  width: 200%;
+  height: 120px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.55) 50%, transparent 100%);
+  transform: rotate(-35deg);
+  opacity: 0.4;
+  filter: blur(30px);
+}
+
+.light-beam.beam-1 {
+  top: 10%;
+  left: -50%;
+  animation: sweepBeam1 24s linear infinite;
+}
+
+.light-beam.beam-2 {
+  top: 60%;
+  left: -50%;
+  animation: sweepBeam2 30s linear infinite 12s;
+}
+
+@keyframes floatOrb1 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(80px, 60px) scale(1.1); }
+  100% { transform: translate(-40px, 90px) scale(0.95); }
+}
+
+@keyframes floatOrb2 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-90px, -50px) scale(1.15); }
+  100% { transform: translate(50px, -80px) scale(0.9); }
+}
+
+@keyframes floatOrb3 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-60px, 40px) scale(1.2); }
+  100% { transform: translate(70px, -30px) scale(0.85); }
+}
+
+@keyframes sweepBeam1 {
+  0% { transform: translateX(-100%) rotate(-35deg); }
+  100% { transform: translateX(100%) rotate(-35deg); }
+}
+
+@keyframes sweepBeam2 {
+  0% { transform: translateX(-100%) rotate(-35deg); }
+  100% { transform: translateX(100%) rotate(-35deg); }
 }
 
 .bg-line {
