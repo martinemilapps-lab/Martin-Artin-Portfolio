@@ -67,13 +67,13 @@ export const DynamicBackground = ({ activeIndex, mousePos }) => {
 
         if (p.isAccent) {
           ctx.fillStyle = `rgba(229, 57, 53, ${effectiveAlpha * 0.9})`;
-          ctx.shadowColor = 'rgba(229, 57, 53, 0.75)';
+          ctx.shadowColor = 'rgba(229, 57, 53, 0.6)';
         } else {
-          ctx.fillStyle = `rgba(255, 255, 255, ${effectiveAlpha})`;
-          ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+          ctx.fillStyle = `rgba(24, 24, 27, ${effectiveAlpha * 0.65})`;
+          ctx.shadowColor = 'rgba(24, 24, 27, 0.35)';
         }
 
-        ctx.shadowBlur = p.radius * 4;
+        ctx.shadowBlur = p.radius * 3;
         ctx.fill();
 
         // Draw glowing halo around key nodes for high clarity
@@ -81,8 +81,8 @@ export const DynamicBackground = ({ activeIndex, mousePos }) => {
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.radius * 2.8, 0, Math.PI * 2);
           ctx.fillStyle = p.isAccent 
-            ? `rgba(229, 57, 53, ${effectiveAlpha * 0.25})`
-            : `rgba(255, 255, 255, ${effectiveAlpha * 0.25})`;
+            ? `rgba(229, 57, 53, ${effectiveAlpha * 0.2})`
+            : `rgba(24, 24, 27, ${effectiveAlpha * 0.12})`;
           ctx.shadowBlur = 0;
           ctx.fill();
         }
@@ -100,9 +100,9 @@ export const DynamicBackground = ({ activeIndex, mousePos }) => {
             ctx.lineTo(p2.x, p2.y);
             const lineAlpha = (1 - dist / 170) * 0.28;
             ctx.strokeStyle = p.isAccent || p2.isAccent 
-              ? `rgba(229, 57, 53, ${lineAlpha * 0.8})` 
-              : `rgba(255, 255, 255, ${lineAlpha * 0.35})`;
-            ctx.lineWidth = 1.1;
+              ? `rgba(229, 57, 53, ${lineAlpha * 0.75})` 
+              : `rgba(24, 24, 27, ${lineAlpha * 0.22})`;
+            ctx.lineWidth = 1.0;
             ctx.shadowBlur = 0;
             ctx.stroke();
           }
@@ -185,7 +185,7 @@ export const DynamicBackground = ({ activeIndex, mousePos }) => {
       >
         <defs>
           <pattern id="archGrid" width="100" height="100" patternUnits="userSpaceOnUse">
-            <path d="M 100 0 L 0 0 0 100" fill="none" stroke="rgba(255, 255, 255, 0.05)" strokeWidth="1.2" />
+            <path d="M 100 0 L 0 0 0 100" fill="none" stroke="rgba(0, 0, 0, 0.05)" strokeWidth="1.2" />
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#archGrid)" />

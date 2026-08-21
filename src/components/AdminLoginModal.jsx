@@ -37,6 +37,18 @@ export const AdminLoginModal = ({ isOpen, onClose, onSuccess }) => {
     return () => clearInterval(timer);
   }, [rateStatus.locked, rateStatus.remainingSeconds]);
 
+  // Close on Escape key press
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e) => {

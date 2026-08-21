@@ -328,22 +328,26 @@ export async function deleteCampaignFromTurso(id) {
 }
 
 /**
- * Health check & Ping Turso Cloud Database
+ * Health check & Ping Turso Cloud Database with timeout protection
  */
-export async function checkDatabaseHealth() {
+export async function checkDatabaseHealth(timeoutMs = 6000) {
   const client = getTursoClient();
   if (!client) return { ok: false, error: 'Client not configured' };
 
   const start = performance.now();
   try {
-    const res = await client.execute('SELECT 1 as ping;');
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Connection timed out')), timeoutMs)
+    );
+    const pingPromise = client.execute('SELECT 1 as ping;');
+    const res = await Promise.race([pingPromise, timeoutPromise]);
     const latencyMs = Math.round(performance.now() - start);
-    if (res.rows.length > 0) {
+    if (res && res.rows && res.rows.length > 0) {
       return { ok: true, latencyMs, location: 'aws-us-east-2 (Turso Cloud)' };
     }
     return { ok: false, error: 'Unexpected response from database' };
   } catch (e) {
-    return { ok: false, error: e.message };
+    return { ok: false, error: e.message || 'Connection failed' };
   }
 }
 

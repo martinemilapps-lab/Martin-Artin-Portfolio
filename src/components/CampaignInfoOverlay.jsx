@@ -1,8 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ExternalLink, Globe, Link as LinkIcon, Image as ImageIcon } from 'lucide-react';
 
 export const CampaignInfoOverlay = ({ campaign, onClose }) => {
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+
+  // Close on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   if (!campaign) return null;
 

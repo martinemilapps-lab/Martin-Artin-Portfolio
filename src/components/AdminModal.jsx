@@ -92,22 +92,26 @@ export const AdminModal = ({
   const [securityNotice, setSecurityNotice] = useState('');
 
   // Turso Database Health & Sync State
-  const [dbHealth, setDbHealth] = useState({ ok: true, latencyMs: 38, location: 'aws-us-east-2 (Turso Cloud)' });
+  const [dbHealth, setDbHealth] = useState({ ok: true, checking: false, latencyMs: 38, location: 'aws-us-east-2 (Turso Cloud)' });
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
 
   const fileInputRef = useRef(null);
   const jsonImportRef = useRef(null);
 
   // Check Database Health on mount & tab change
+  const refreshDbHealth = React.useCallback(async () => {
+    setDbHealth(prev => ({ ...prev, checking: true }));
+    try {
+      const status = await checkDatabaseHealth();
+      setDbHealth({ ...status, checking: false });
+    } catch {
+      setDbHealth({ ok: false, checking: false, error: 'Connection failed' });
+    }
+  }, []);
+
   useEffect(() => {
-    let isMounted = true;
-    checkDatabaseHealth().then(status => {
-      if (isMounted) setDbHealth(status);
-    }).catch(() => {
-      if (isMounted) setDbHealth({ ok: false, error: 'Connection failed' });
-    });
-    return () => { isMounted = false; };
-  }, [activeTab]);
+    refreshDbHealth();
+  }, [activeTab, refreshDbHealth]);
 
   // Generate current parameterized link on mount / token change
   useEffect(() => {
@@ -117,6 +121,18 @@ export const AdminModal = ({
     const link = `${origin}${pathname}?admin=true&token=${encodeURIComponent(config.customToken)}`;
     setGeneratedLink(link);
   }, [activeTab]);
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   // Touch session on any user interaction in modal
   const handleUserActivity = () => {
@@ -455,10 +471,17 @@ export const AdminModal = ({
             <h1 id="admin-dashboard-title" className="admin-brand-heading">PROJECT & EXHIBITION CONTROL</h1>
             
             {/* Live Turso Connection Pill */}
-            <div className="admin-turso-topbar-pill" title="Turso LibSQL Edge Database Connection">
-              <span className={`turso-status-dot ${dbHealth.ok ? 'online' : 'checking'}`} />
+            <div 
+              className="admin-turso-topbar-pill" 
+              title={dbHealth.checking ? 'Checking Turso LibSQL connection...' : dbHealth.ok ? `Turso Edge Database Connected (${dbHealth.latencyMs || 40}ms). Click to re-check.` : `Turso Offline (${dbHealth.error || 'Connection failed'}). Click to retry.`}
+              onClick={refreshDbHealth}
+              style={{ cursor: 'pointer' }}
+            >
+              <span className={`turso-status-dot ${dbHealth.checking ? 'checking' : dbHealth.ok ? 'online' : 'offline'}`} />
               <Database size={12} />
-              <span>TURSO: {dbHealth.ok ? `CONNECTED (${dbHealth.latencyMs || 40}ms)` : 'CONNECTING...'}</span>
+              <span>
+                TURSO: {dbHealth.checking ? 'CHECKING...' : dbHealth.ok ? `CONNECTED (${dbHealth.latencyMs || 40}ms)` : 'OFFLINE (LOCAL)'}
+              </span>
             </div>
           </div>
 
@@ -1214,10 +1237,16 @@ export const AdminModal = ({
                   </div>
                   <div className="admin-turso-card-header">
                     <h3>TURSO CLOUD DATABASE</h3>
-                    <span className={`admin-turso-status-pill ${dbHealth.ok ? 'online' : 'checking'}`}>
+                    <button 
+                      type="button"
+                      className={`admin-turso-status-pill ${dbHealth.checking ? 'checking' : dbHealth.ok ? 'online' : 'offline'}`}
+                      onClick={refreshDbHealth}
+                      title="Click to re-ping Turso Edge Database"
+                      style={{ cursor: 'pointer', border: 'none' }}
+                    >
                       <span className="turso-ping-dot" />
-                      {dbHealth.ok ? `ONLINE (${dbHealth.latencyMs || 40}ms)` : 'CHECKING...'}
-                    </span>
+                      <span>{dbHealth.checking ? 'CHECKING...' : dbHealth.ok ? `ONLINE (${dbHealth.latencyMs || 40}ms)` : 'OFFLINE (CLICK TO RETRY)'}</span>
+                    </button>
                   </div>
                   <p>
                     Live database connected at <code>libsql://martin-artin-portfolio...</code> on AWS US-East-2. Changes sync automatically in real time.
