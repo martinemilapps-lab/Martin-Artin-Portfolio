@@ -31,20 +31,20 @@ export const HeroSequence = ({ onEnterExhibition }) => {
   if (exited) return null;
 
   return (
-    <div class={`hero-sequence ${phase === 2 ? 'exit-sequence' : ''}`}>
+    <div className={`hero-sequence ${phase === 2 ? 'exit-sequence' : ''}`}>
       <div 
         style={{
           transition: 'transform 1s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.8s ease',
           transform: phase === 2 ? 'translate3d(-10vw, 0, 0)' : 'translate3d(0, 0, 0)',
         }}
       >
-        <h1 class="hero-title">
+        <h1 className="hero-title">
           MARTIN EMIL ARTEEN
         </h1>
 
-        <div class="hero-subtitle-bar">
+        <div className="hero-subtitle-bar">
           <span 
-            class="hero-subtitle"
+            className="hero-subtitle"
             style={{
               opacity: phase >= 1 ? 1 : 0,
               transform: phase >= 1 ? 'translateY(0)' : 'translateY(10px)',
@@ -57,7 +57,7 @@ export const HeroSequence = ({ onEnterExhibition }) => {
       </div>
 
       <button 
-        class="hero-trigger-btn"
+        className="hero-trigger-btn"
         onClick={() => {
           setPhase(2);
           setTimeout(() => {

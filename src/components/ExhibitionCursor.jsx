@@ -20,13 +20,13 @@ export const ExhibitionCursor = ({ mousePos, cursorState }) => {
 
   return (
     <div
-      class={`exhibition-cursor ${isHover ? 'cursor-hover' : 'cursor-dot'}`}
+      className={`exhibition-cursor ${isHover ? 'cursor-hover' : 'cursor-dot'}`}
       style={{
         left: `${mousePos.x}px`,
         top: `${mousePos.y}px`
       }}
     >
-      {isHover && <span class="cursor-text">{cursorState.text}</span>}
+      {isHover && <span className="cursor-text">{cursorState.text}</span>}
     </div>
   );
 };

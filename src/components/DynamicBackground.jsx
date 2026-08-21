@@ -66,11 +66,11 @@ export const DynamicBackground = ({ activeIndex, mousePos }) => {
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
 
         if (p.isAccent) {
-          ctx.fillStyle = `rgba(200, 42, 30, ${effectiveAlpha * 0.85})`;
-          ctx.shadowColor = 'rgba(200, 42, 30, 0.6)';
+          ctx.fillStyle = `rgba(229, 57, 53, ${effectiveAlpha * 0.9})`;
+          ctx.shadowColor = 'rgba(229, 57, 53, 0.75)';
         } else {
           ctx.fillStyle = `rgba(255, 255, 255, ${effectiveAlpha})`;
-          ctx.shadowColor = 'rgba(255, 255, 255, 0.95)';
+          ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
         }
 
         ctx.shadowBlur = p.radius * 4;
@@ -81,8 +81,8 @@ export const DynamicBackground = ({ activeIndex, mousePos }) => {
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.radius * 2.8, 0, Math.PI * 2);
           ctx.fillStyle = p.isAccent 
-            ? `rgba(200, 42, 30, ${effectiveAlpha * 0.2})`
-            : `rgba(255, 255, 255, ${effectiveAlpha * 0.35})`;
+            ? `rgba(229, 57, 53, ${effectiveAlpha * 0.25})`
+            : `rgba(255, 255, 255, ${effectiveAlpha * 0.25})`;
           ctx.shadowBlur = 0;
           ctx.fill();
         }
@@ -100,8 +100,8 @@ export const DynamicBackground = ({ activeIndex, mousePos }) => {
             ctx.lineTo(p2.x, p2.y);
             const lineAlpha = (1 - dist / 170) * 0.28;
             ctx.strokeStyle = p.isAccent || p2.isAccent 
-              ? `rgba(200, 42, 30, ${lineAlpha * 0.7})` 
-              : `rgba(14, 14, 14, ${lineAlpha})`;
+              ? `rgba(229, 57, 53, ${lineAlpha * 0.8})` 
+              : `rgba(255, 255, 255, ${lineAlpha * 0.35})`;
             ctx.lineWidth = 1.1;
             ctx.shadowBlur = 0;
             ctx.stroke();
@@ -185,22 +185,22 @@ export const DynamicBackground = ({ activeIndex, mousePos }) => {
       >
         <defs>
           <pattern id="archGrid" width="100" height="100" patternUnits="userSpaceOnUse">
-            <path d="M 100 0 L 0 0 0 100" fill="none" stroke="rgba(14, 14, 14, 0.055)" strokeWidth="1.2" />
+            <path d="M 100 0 L 0 0 0 100" fill="none" stroke="rgba(255, 255, 255, 0.05)" strokeWidth="1.2" />
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#archGrid)" />
         
         {/* Animated Perimeter Axis Crosshairs */}
         <g className="pulsing-crosshair">
-          <circle cx="20%" cy="25%" r="4" fill="none" stroke="rgba(200, 42, 30, 0.6)" strokeWidth="1.5" />
-          <line x1="20%" y1="22%" x2="20%" y2="28%" stroke="rgba(200, 42, 30, 0.6)" strokeWidth="1.5" />
-          <line x1="17%" y1="25%" x2="23%" y2="25%" stroke="rgba(200, 42, 30, 0.6)" strokeWidth="1.5" />
+          <circle cx="20%" cy="25%" r="4" fill="none" stroke="rgba(229, 57, 53, 0.8)" strokeWidth="1.5" />
+          <line x1="20%" y1="22%" x2="20%" y2="28%" stroke="rgba(229, 57, 53, 0.8)" strokeWidth="1.5" />
+          <line x1="17%" y1="25%" x2="23%" y2="25%" stroke="rgba(229, 57, 53, 0.8)" strokeWidth="1.5" />
         </g>
 
         <g className="pulsing-crosshair-alt">
-          <circle cx="80%" cy="75%" r="4" fill="none" stroke="rgba(200, 42, 30, 0.6)" strokeWidth="1.5" />
-          <line x1="80%" y1="72%" x2="80%" y2="78%" stroke="rgba(200, 42, 30, 0.6)" strokeWidth="1.5" />
-          <line x1="77%" y1="75%" x2="83%" y2="75%" stroke="rgba(200, 42, 30, 0.6)" strokeWidth="1.5" />
+          <circle cx="80%" cy="75%" r="4" fill="none" stroke="rgba(229, 57, 53, 0.8)" strokeWidth="1.5" />
+          <line x1="80%" y1="72%" x2="80%" y2="78%" stroke="rgba(229, 57, 53, 0.8)" strokeWidth="1.5" />
+          <line x1="77%" y1="75%" x2="83%" y2="75%" stroke="rgba(229, 57, 53, 0.8)" strokeWidth="1.5" />
         </g>
       </svg>
     </div>

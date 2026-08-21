@@ -1,19 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 export const CampaignIndex = ({ campaigns, activeIndex, onSelectCampaign }) => {
-  const [hoveredIdx, setHoveredIdx] = useState(null);
-
   return (
-    <div class="campaign-index-list">
+    <div className="campaign-index-list">
       {campaigns.map((c, idx) => {
         const isActive = activeIndex === idx;
         return (
           <button
-            key={c.id}
-            class={`index-item ${isActive ? 'active' : ''}`}
+            key={c.id || idx}
+            className={`index-item ${isActive ? 'active' : ''}`}
             onClick={() => onSelectCampaign(idx)}
-            onMouseEnter={() => setHoveredIdx(idx)}
-            onMouseLeave={() => setHoveredIdx(null)}
             title={c.title}
           >
             {c.id}
@@ -23,3 +19,4 @@ export const CampaignIndex = ({ campaigns, activeIndex, onSelectCampaign }) => {
     </div>
   );
 };
+
