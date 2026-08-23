@@ -1,13 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { loadCampaigns, saveCampaigns, syncCampaignsFromTurso } from './utils/projectStorage';
-import { 
-  createAdminSession, 
-  revokeAdminSession, 
-  isSessionValid, 
-  verifyAccessToken, 
-  subscribeToSession,
-  syncSecurityConfigWithTurso
-} from './utils/security';
 import { DynamicBackground } from './components/DynamicBackground';
 import { ExhibitionCursor } from './components/ExhibitionCursor';
 import { TopHeader } from './components/TopHeader';
@@ -16,11 +8,20 @@ import { CampaignViewer } from './components/CampaignViewer';
 import { CampaignCounter } from './components/CampaignCounter';
 import { CampaignIndex } from './components/CampaignIndex';
 import { CampaignInfoOverlay } from './components/CampaignInfoOverlay';
-import { AdminModal } from './components/AdminModal';
-import { AdminLoginModal } from './components/AdminLoginModal';
 import { ToastNotification } from './components/ToastNotification';
 
+// Dynamically lazy-load Admin Portal so all admin code is completely hidden from public inspection
+const AdminPortal = lazy(() => import('./components/admin/AdminPortal'));
+
+function checkIsAdminRoute() {
+  if (typeof window === 'undefined') return false;
+  const path = window.location.pathname.toLowerCase();
+  const searchParams = new URLSearchParams(window.location.search);
+  return path.startsWith('/admin') || searchParams.has('admin');
+}
+
 export function App() {
+  const [isAdminRoute, setIsAdminRoute] = useState(() => checkIsAdminRoute());
   const [campaigns, setCampaigns] = useState(() => loadCampaigns());
   const [activeIndex, setActiveIndex] = useState(0);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -28,31 +29,40 @@ export function App() {
   const [isAutoplay, setIsAutoplay] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [inHero, setInHero] = useState(true);
-
-  // Admin Mode & Security State
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
   const lastWheelTime = useRef(0);
   const touchStartX = useRef(0);
   const totalCampaigns = campaigns.length;
 
-  // Background Cloud Sync with Turso on mount
+  // Show Toast Helper
+  const showToast = useCallback((toastData) => {
+    setToast(toastData);
+  }, []);
+
+  // Listen to browser navigation popstate
   useEffect(() => {
-    const syncCloudData = async () => {
+    const handlePopState = () => {
+      setIsAdminRoute(checkIsAdminRoute());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Sync Campaigns from Server API on mount
+  useEffect(() => {
+    const initializePublicData = async () => {
       try {
         const res = await syncCampaignsFromTurso();
         if (res.success && Array.isArray(res.campaigns) && res.campaigns.length > 0) {
           setCampaigns(res.campaigns);
         }
-        await syncSecurityConfigWithTurso();
       } catch (err) {
-        console.warn('Initial cloud sync notice:', err);
+        console.warn('Initial server sync notice:', err);
       }
     };
-    syncCloudData();
+
+    initializePublicData();
   }, []);
 
   // Safe activeIndex bounds check if campaigns change
@@ -71,95 +81,6 @@ export function App() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Show Toast Helper
-  const showToast = useCallback((toastData) => {
-    setToast(toastData);
-  }, []);
-
-  // Subscribe to Security Session Changes
-  useEffect(() => {
-    const unsubscribe = subscribeToSession((authenticated) => {
-      setIsAdmin(authenticated);
-      if (!authenticated) {
-        setIsAdminModalOpen(false);
-      }
-    });
-    return unsubscribe;
-  }, []);
-
-  // -------------------------------------------------------------
-  // PARAMETERIZED LINK & ROUTE SECURITY PROCESSOR
-  // -------------------------------------------------------------
-  useEffect(() => {
-    const processUrlParameters = async () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const hash = window.location.hash || '';
-      const pathname = window.location.pathname || '';
-
-      const isAdminQuery = urlParams.get('admin') === 'true' || urlParams.get('admin') === '1';
-      const tokenParam = urlParams.get('token') || urlParams.get('key');
-      const isPathAdmin = pathname.endsWith('/admin') || pathname.endsWith('/admin/');
-      const isHashAdmin = hash.startsWith('#admin');
-
-      if (tokenParam) {
-        // Authenticate via Parameterized Access Token
-        const isValid = await verifyAccessToken(tokenParam);
-        if (isValid) {
-          createAdminSession();
-          setIsAdmin(true);
-          setIsAdminModalOpen(true);
-          showToast({ 
-            type: 'success', 
-            title: 'Authenticated via Access Link', 
-            message: 'Admin session established securely.' 
-          });
-
-          // SANITIZE URL: Strip sensitive token parameter from browser address & history
-          urlParams.delete('token');
-          urlParams.delete('key');
-          const cleanSearch = urlParams.toString() ? `?${urlParams.toString()}` : '';
-          const cleanUrl = `${window.location.pathname}${cleanSearch}${window.location.hash}`;
-          window.history.replaceState({}, document.title, cleanUrl);
-        } else {
-          showToast({ 
-            type: 'error', 
-            title: 'Access Token Invalid', 
-            message: 'The parameterized link token is invalid or has expired.' 
-          });
-          setIsLoginModalOpen(true);
-        }
-      } else if (isAdminQuery || isPathAdmin || isHashAdmin) {
-        // Requested admin without direct token
-        if (isSessionValid()) {
-          setIsAdminModalOpen(true);
-        } else {
-          setIsLoginModalOpen(true);
-        }
-      }
-    };
-
-    processUrlParameters();
-  }, [showToast]);
-
-  // -------------------------------------------------------------
-  // KEYBOARD SHORTCUT (Ctrl+Shift+A or Cmd+Shift+A)
-  // -------------------------------------------------------------
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
-        e.preventDefault();
-        if (isSessionValid()) {
-          setIsAdminModalOpen(prev => !prev);
-        } else {
-          setIsLoginModalOpen(true);
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
   // Campaign Navigation helper
   const nextCampaign = useCallback(() => {
     if (totalCampaigns === 0) return;
@@ -173,11 +94,11 @@ export function App() {
 
   // Wheel / Trackpad Gesture Handler
   useEffect(() => {
-    if (inHero || isInfoOpen || isAdminModalOpen || isLoginModalOpen) return;
+    if (inHero || isInfoOpen || isAdminRoute) return;
 
     const handleWheel = (e) => {
       const now = Date.now();
-      if (now - lastWheelTime.current < 650) return; // 650ms cooldown
+      if (now - lastWheelTime.current < 650) return;
 
       if (Math.abs(e.deltaY) > 20 || Math.abs(e.deltaX) > 20) {
         if (e.deltaY > 0 || e.deltaX > 0) {
@@ -191,11 +112,11 @@ export function App() {
 
     window.addEventListener('wheel', handleWheel, { passive: true });
     return () => window.removeEventListener('wheel', handleWheel);
-  }, [inHero, isInfoOpen, isAdminModalOpen, isLoginModalOpen, nextCampaign, prevCampaign]);
+  }, [inHero, isInfoOpen, isAdminRoute, nextCampaign, prevCampaign]);
 
   // Keyboard navigation for exhibition
   useEffect(() => {
-    if (inHero || isInfoOpen || isAdminModalOpen || isLoginModalOpen) return;
+    if (inHero || isInfoOpen || isAdminRoute) return;
 
     const handleKeyDown = (e) => {
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
@@ -207,7 +128,7 @@ export function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [inHero, isInfoOpen, isAdminModalOpen, isLoginModalOpen, nextCampaign, prevCampaign]);
+  }, [inHero, isInfoOpen, isAdminRoute, nextCampaign, prevCampaign]);
 
   // Touch Swipe navigation
   const handleTouchStart = (e) => {
@@ -215,7 +136,7 @@ export function App() {
   };
 
   const handleTouchEnd = (e) => {
-    if (inHero || isInfoOpen || isAdminModalOpen || isLoginModalOpen) return;
+    if (inHero || isInfoOpen || isAdminRoute) return;
     const touchEndX = e.changedTouches[0].clientX;
     const diff = touchStartX.current - touchEndX;
 
@@ -230,51 +151,50 @@ export function App() {
 
   // Autoplay Reel timer
   useEffect(() => {
-    if (!isAutoplay || inHero || isInfoOpen || isAdminModalOpen || isLoginModalOpen) return;
+    if (!isAutoplay || inHero || isInfoOpen || isAdminRoute) return;
     const timer = setInterval(() => {
       nextCampaign();
     }, 5000);
     return () => clearInterval(timer);
-  }, [isAutoplay, inHero, isInfoOpen, isAdminModalOpen, isLoginModalOpen, nextCampaign]);
+  }, [isAutoplay, inHero, isInfoOpen, isAdminRoute, nextCampaign]);
 
-  // Admin Campaigns Update
+  // Admin Campaigns Update callback
   const handleUpdateCampaigns = (newCampaignsList) => {
     setCampaigns(newCampaignsList);
     saveCampaigns(newCampaignsList);
   };
 
-  // Admin Login Success
-  const handleLoginSuccess = () => {
-    createAdminSession();
-    setIsLoginModalOpen(false);
-    setIsAdminModalOpen(true);
-    showToast({ 
-      type: 'success', 
-      title: 'Authentication Successful', 
-      message: 'Admin session established.' 
-    });
-  };
+  // Navigate to Public Exhibition
+  const handleNavigateHome = useCallback(() => {
+    window.history.pushState({}, '', '/');
+    setIsAdminRoute(false);
+  }, []);
 
-  // Session Revocation
-  const handleRevokeSession = () => {
-    revokeAdminSession();
-    setIsAdminModalOpen(false);
-    showToast({ 
-      type: 'info', 
-      title: 'Session Revoked', 
-      message: 'Logged out of Admin Mode.' 
-    });
-  };
+  // If on /admin route, render code-split Admin Portal
+  if (isAdminRoute) {
+    return (
+      <Suspense
+        fallback={
+          <div className="admin-portal-fullscreen-backdrop">
+            <div className="admin-portal-loading-card">
+              <div className="admin-portal-spinner" />
+              <p className="admin-portal-loading-text">[ INITIALIZING SECURE ADMIN PORTAL... ]</p>
+            </div>
+          </div>
+        }
+      >
+        <AdminPortal
+          campaigns={campaigns}
+          onUpdateCampaigns={handleUpdateCampaigns}
+          onShowToast={showToast}
+          onNavigateHome={handleNavigateHome}
+        />
+        <ToastNotification toast={toast} onClose={() => setToast(null)} />
+      </Suspense>
+    );
+  }
 
-  // Open Admin Handler
-  const handleOpenAdminTrigger = () => {
-    if (isSessionValid()) {
-      setIsAdminModalOpen(true);
-    } else {
-      setIsLoginModalOpen(true);
-    }
-  };
-
+  // Pure, Editorial Public Exhibition View (Zero Admin DOM / Code)
   return (
     <div 
       className="app-viewport"
@@ -282,9 +202,7 @@ export function App() {
       onTouchEnd={handleTouchEnd}
     >
       {/* Editorial Custom Cursor */}
-      {!isAdminModalOpen && !isLoginModalOpen && (
-        <ExhibitionCursor mousePos={mousePos} cursorState={cursorState} />
-      )}
+      <ExhibitionCursor mousePos={mousePos} cursorState={cursorState} />
 
       {/* Vector Architectural Dynamic Background */}
       <DynamicBackground activeIndex={activeIndex} mousePos={mousePos} />
@@ -292,8 +210,6 @@ export function App() {
       {/* Header Bar */}
       <TopHeader 
         onBrandClick={() => setInHero(true)} 
-        isAdmin={isAdmin}
-        onOpenAdmin={handleOpenAdminTrigger}
       />
 
       {/* Hero Title Sequence Intro */}
@@ -361,23 +277,6 @@ export function App() {
         />
       )}
 
-      {/* Admin Login Verification Challenge Modal */}
-      <AdminLoginModal
-        isOpen={isLoginModalOpen}
-        onClose={() => setIsLoginModalOpen(false)}
-        onSuccess={handleLoginSuccess}
-      />
-
-      {/* Admin Control Panel Dashboard Modal */}
-      <AdminModal
-        isOpen={isAdminModalOpen}
-        onClose={() => setIsAdminModalOpen(false)}
-        campaigns={campaigns}
-        onUpdateCampaigns={handleUpdateCampaigns}
-        onRevokeSession={handleRevokeSession}
-        onShowToast={showToast}
-      />
-
       {/* Global Architectural Toast Notifications */}
       <ToastNotification
         toast={toast}
@@ -388,3 +287,4 @@ export function App() {
 }
 
 export default App;
+

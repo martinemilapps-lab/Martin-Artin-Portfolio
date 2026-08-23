@@ -1,4 +1,4 @@
-export const campaignsData = [
+export const defaultCampaigns = [
   {
     id: '01',
     title: 'AETHER — MONOLITH AUTOMOTIVE',
@@ -122,6 +122,3 @@ export const campaignsData = [
     thumbnail: '/campaigns/c6.jpg'
   }
 ];
-
-export const DEFAULT_CAMPAIGNS = campaignsData;
-

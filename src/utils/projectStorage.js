@@ -1,22 +1,16 @@
 /**
  * PROJECT STORAGE & CAMPAIGNS DATA ENGINE
- * Hybrid storage: Turso Cloud Database (Primary) + LocalStorage (Optimistic Cache) + Fallback
- * Provides schema validation, real-time cloud synchronization, backup export/import,
- * and code generation for git repository commits.
+ * Uses Server API (Primary) + LocalStorage (Untrusted UI Cache) + Fallback
  */
 
 import { campaignsData as initialDefaultCampaigns } from '../data/campaignsData';
 import { sanitizeImageUrl, sanitizeExternalUrl } from './security';
-import { 
-  initDatabaseSchema, 
-  fetchCampaignsFromTurso, 
-  saveAllCampaignsToTurso 
-} from '../services/tursoService';
+import { api } from '../services/api';
 
-export const CAMPAIGNS_STORAGE_KEY = 'mea_portfolio_campaigns_v2';
+export const CAMPAIGNS_STORAGE_KEY = 'mea_portfolio_campaigns_cache_v3';
 
 /**
- * Validate campaign object schema
+ * Validate campaign object schema (client-side preview check)
  */
 export function validateCampaign(campaign) {
   if (!campaign || typeof campaign !== 'object') {
@@ -62,16 +56,16 @@ export function sanitizeCampaign(campaign, fallbackIndex = 1) {
     ? String(campaign.id).padStart(2, '0') 
     : String(fallbackIndex).padStart(2, '0');
 
-  // Process gallery photos if any
   let sanitizedGallery = [];
   if (Array.isArray(campaign.gallery)) {
     sanitizedGallery = campaign.gallery
-      .map(item => {
+      .map((item, idx) => {
         if (typeof item === 'string') {
           const clean = sanitizeImageUrl(item);
-          return clean ? { url: clean, caption: '' } : null;
+          return clean ? { id: `g_${idx}`, url: clean, caption: '' } : null;
         } else if (item && typeof item === 'object' && item.url) {
           return {
+            id: item.id || `g_${idx}`,
             url: sanitizeImageUrl(item.url),
             caption: (item.caption || '').trim()
           };
@@ -94,15 +88,18 @@ export function sanitizeCampaign(campaign, fallbackIndex = 1) {
     description: (campaign.description || '').trim(),
     credits: (campaign.credits || '').trim(),
     link: sanitizeExternalUrl(campaign.link),
-    case_study_link: sanitizeExternalUrl(campaign.case_study_link),
-    client_link: sanitizeExternalUrl(campaign.client_link),
+    case_study_link: sanitizeExternalUrl(campaign.case_study_link || campaign.caseStudyLink),
+    caseStudyLink: sanitizeExternalUrl(campaign.case_study_link || campaign.caseStudyLink),
+    client_link: sanitizeExternalUrl(campaign.client_link || campaign.clientLink),
+    clientLink: sanitizeExternalUrl(campaign.client_link || campaign.clientLink),
     gallery: sanitizedGallery,
-    thumbnail: sanitizeImageUrl(campaign.thumbnail || campaign.image)
+    thumbnail: sanitizeImageUrl(campaign.thumbnail || campaign.image),
+    displayOrder: typeof campaign.displayOrder === 'number' ? campaign.displayOrder : 0
   };
 }
 
 /**
- * Load campaigns from local cache or seed data (instant 0ms initial render)
+ * Load campaigns from local untrusted cache or seed data (instant initial paint)
  */
 export function loadCampaigns() {
   try {
@@ -114,36 +111,36 @@ export function loadCampaigns() {
       }
     }
   } catch (e) {
-    console.warn('Could not read saved campaigns from localStorage:', e);
+    console.warn('Could not read cached campaigns from localStorage:', e);
   }
 
   return initialDefaultCampaigns.map((item, idx) => sanitizeCampaign(item, idx + 1));
 }
 
 /**
- * Fetch fresh campaigns from Turso Cloud Database and update local cache
+ * Fetch fresh campaigns from Server API and update local untrusted cache
  */
 export async function syncCampaignsFromTurso() {
   try {
-    // 1. Initialize schema if needed
-    await initDatabaseSchema(initialDefaultCampaigns);
-
-    // 2. Fetch fresh data from Turso
-    const result = await fetchCampaignsFromTurso();
-    if (result.success && Array.isArray(result.campaigns) && result.campaigns.length > 0) {
+    const result = await api.getCampaigns();
+    if (result && Array.isArray(result.campaigns) && result.campaigns.length > 0) {
       const sanitized = result.campaigns.map((item, idx) => sanitizeCampaign(item, idx + 1));
-      localStorage.setItem(CAMPAIGNS_STORAGE_KEY, JSON.stringify(sanitized));
-      return { success: true, campaigns: sanitized, source: 'turso' };
+      try {
+        localStorage.setItem(CAMPAIGNS_STORAGE_KEY, JSON.stringify(sanitized));
+      } catch (err) {
+        console.warn('Cache write failed:', err);
+      }
+      return { success: true, campaigns: sanitized, source: 'server' };
     }
   } catch (e) {
-    console.warn('syncCampaignsFromTurso failed, using local cache:', e);
+    console.warn('syncCampaigns from server API failed, using cached fallback:', e);
   }
 
   return { success: false, campaigns: loadCampaigns(), source: 'cache' };
 }
 
 /**
- * Save campaigns array to local cache and synchronize with Turso Cloud
+ * Save campaigns array through Server API and update local cache
  */
 export async function saveCampaigns(campaigns, syncCloud = true) {
   if (!Array.isArray(campaigns) || campaigns.length === 0) {
@@ -152,21 +149,19 @@ export async function saveCampaigns(campaigns, syncCloud = true) {
 
   const sanitized = campaigns.map((item, idx) => sanitizeCampaign(item, idx + 1));
 
-  // 1. Save to LocalStorage immediately for zero-delay optimistic UX
   try {
     localStorage.setItem(CAMPAIGNS_STORAGE_KEY, JSON.stringify(sanitized));
   } catch (e) {
     console.warn('LocalStorage write error:', e);
   }
 
-  // 2. Push to Turso Cloud Database
   if (syncCloud) {
     try {
-      const cloudRes = await saveAllCampaignsToTurso(sanitized);
-      return { success: true, count: sanitized.length, cloudSynced: cloudRes.success };
+      await api.importCampaigns(sanitized);
+      return { success: true, count: sanitized.length, cloudSynced: true };
     } catch (e) {
-      console.error('Turso cloud sync error on save:', e);
-      return { success: true, count: sanitized.length, cloudSynced: false, error: e.message };
+      console.error('Server sync error on save:', e);
+      return { success: false, count: sanitized.length, cloudSynced: false, error: e.message };
     }
   }
 
@@ -174,7 +169,7 @@ export async function saveCampaigns(campaigns, syncCloud = true) {
 }
 
 /**
- * Reset campaigns back to factory default and sync with Turso
+ * Reset campaigns back to factory defaults via Server API
  */
 export async function resetCampaignsToDefault(syncCloud = true) {
   const defaults = initialDefaultCampaigns.map((item, idx) => sanitizeCampaign(item, idx + 1));
@@ -182,14 +177,14 @@ export async function resetCampaignsToDefault(syncCloud = true) {
   try {
     localStorage.removeItem(CAMPAIGNS_STORAGE_KEY);
   } catch (e) {
-    console.error('Failed to reset local storage:', e);
+    console.error('Failed to reset local cache:', e);
   }
 
   if (syncCloud) {
     try {
-      await saveAllCampaignsToTurso(defaults);
+      await api.resetCampaigns();
     } catch (e) {
-      console.warn('Turso reset sync error:', e);
+      console.warn('Server reset sync error:', e);
     }
   }
 
@@ -252,10 +247,9 @@ export function exportCampaignsJS(campaigns) {
  */
 export function exportCampaignsJSON(campaigns) {
   const payload = {
-    version: '2.0',
+    version: '3.0',
     exportDate: new Date().toISOString(),
     author: 'Martin Emil Arteen Portfolio Admin',
-    database: 'Turso LibSQL Cloud',
     campaigns: campaigns.map((item, idx) => sanitizeCampaign(item, idx + 1))
   };
   const jsonStr = JSON.stringify(payload, null, 2);
@@ -263,7 +257,7 @@ export function exportCampaignsJSON(campaigns) {
 }
 
 /**
- * Import campaigns from JSON backup text
+ * Import campaigns from JSON backup text and sync with server
  */
 export async function importCampaignsJSON(jsonString) {
   try {
@@ -280,7 +274,6 @@ export async function importCampaignsJSON(jsonString) {
       return { success: false, error: 'Imported file contains no valid campaigns array.' };
     }
 
-    // Validate each campaign in list
     for (let i = 0; i < items.length; i++) {
       const val = validateCampaign(items[i]);
       if (!val.valid) {
@@ -289,7 +282,11 @@ export async function importCampaignsJSON(jsonString) {
     }
 
     const sanitized = items.map((item, idx) => sanitizeCampaign(item, idx + 1));
-    await saveCampaigns(sanitized, true);
+    const result = await saveCampaigns(sanitized, true);
+
+    if (!result.success) {
+      return { success: false, error: result.error || 'Failed to sync imported campaigns with server.' };
+    }
 
     return { success: true, count: sanitized.length, campaigns: sanitized };
   } catch (e) {

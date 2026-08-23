@@ -1,41 +1,43 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShieldAlert, ShieldCheck, Eye, EyeOff, X, KeyRound, AlertTriangle } from 'lucide-react';
-import { verifyPasskey, checkRateLimit } from '../utils/security';
+import { api } from '../services/api';
 
 export const AdminLoginModal = ({ isOpen, onClose, onSuccess }) => {
-  const [passkey, setPasskey] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [rateStatus, setRateStatus] = useState({ locked: false, remainingAttempts: 5, remainingSeconds: 0 });
-  const inputRef = useRef(null);
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockoutSeconds, setLockoutSeconds] = useState(0);
+  const usernameInputRef = useRef(null);
 
-  // Check rate limit state when opened
+  // Reset and focus on open
   useEffect(() => {
     if (isOpen) {
-      const status = checkRateLimit();
-      setRateStatus(status);
-      setErrorMessage(status.locked ? `Security lockout active (${status.remainingSeconds}s)` : '');
-      setPasskey('');
-      setTimeout(() => inputRef.current?.focus(), 150);
+      setUsername('');
+      setPassword('');
+      setErrorMessage('');
+      setTimeout(() => usernameInputRef.current?.focus(), 150);
     }
   }, [isOpen]);
 
   // Lockout countdown timer
   useEffect(() => {
-    if (!rateStatus.locked || rateStatus.remainingSeconds <= 0) return;
+    if (!isLocked || lockoutSeconds <= 0) return;
     const timer = setInterval(() => {
-      setRateStatus(prev => {
-        if (prev.remainingSeconds <= 1) {
+      setLockoutSeconds(prev => {
+        if (prev <= 1) {
           clearInterval(timer);
-          return { locked: false, remainingAttempts: 5, remainingSeconds: 0 };
+          setIsLocked(false);
+          return 0;
         }
-        return { ...prev, remainingSeconds: prev.remainingSeconds - 1 };
+        return prev - 1;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [rateStatus.locked, rateStatus.remainingSeconds]);
+  }, [isLocked, lockoutSeconds]);
 
   // Close on Escape key press
   useEffect(() => {
@@ -53,9 +55,9 @@ export const AdminLoginModal = ({ isOpen, onClose, onSuccess }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (rateStatus.locked) return;
-    if (!passkey.trim()) {
-      setErrorMessage('Please enter the Master Passkey.');
+    if (isLocked) return;
+    if (!username.trim() || !password.trim()) {
+      setErrorMessage('Please enter both administrator username and password.');
       return;
     }
 
@@ -63,19 +65,22 @@ export const AdminLoginModal = ({ isOpen, onClose, onSuccess }) => {
     setErrorMessage('');
 
     try {
-      const result = await verifyPasskey(passkey);
-      if (result.valid) {
+      const result = await api.login(username.trim(), password.trim());
+      if (result && result.authenticated) {
         onSuccess();
       } else {
-        setRateStatus({
-          locked: result.locked,
-          remainingAttempts: result.remainingAttempts,
-          remainingSeconds: result.remainingSeconds || 0
-        });
-        setErrorMessage(result.error || 'Authentication failed. Please verify credentials.');
+        setErrorMessage('Invalid credentials.');
       }
     } catch (err) {
-      setErrorMessage(`Authentication error: ${err.message}`);
+      if (err.status === 429) {
+        setIsLocked(true);
+        setLockoutSeconds(err.data?.remainingSeconds || 60);
+        setErrorMessage(err.message || 'Too many failed login attempts. Security lockout active.');
+      } else if (err.status === 401) {
+        setErrorMessage('Invalid credentials.');
+      } else {
+        setErrorMessage(err.message || 'Authentication failed. Please verify credentials.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -94,7 +99,7 @@ export const AdminLoginModal = ({ isOpen, onClose, onSuccess }) => {
         <div className="admin-login-header">
           <div className="admin-login-title-row">
             <div className="admin-security-shield-icon">
-              {rateStatus.locked ? <ShieldAlert size={20} className="text-crimson" /> : <KeyRound size={20} />}
+              {isLocked ? <ShieldAlert size={20} className="text-crimson" /> : <KeyRound size={20} />}
             </div>
             <div>
               <h2 id="login-modal-title" className="admin-login-title">ADMIN AUTHENTICATION</h2>
@@ -107,12 +112,12 @@ export const AdminLoginModal = ({ isOpen, onClose, onSuccess }) => {
         </div>
 
         {/* Security Alert if locked */}
-        {rateStatus.locked ? (
+        {isLocked ? (
           <div className="admin-lockout-banner">
             <AlertTriangle size={18} />
             <div>
               <strong>RATE LIMIT COOLDOWN ACTIVE</strong>
-              <p>Too many failed attempts. Unlock in {rateStatus.remainingSeconds}s.</p>
+              <p>Too many failed attempts. Temporary lockout for {lockoutSeconds}s.</p>
             </div>
           </div>
         ) : null}
@@ -120,22 +125,37 @@ export const AdminLoginModal = ({ isOpen, onClose, onSuccess }) => {
         {/* Form */}
         <form onSubmit={handleSubmit} className="admin-login-form">
           <div className="admin-input-group">
-            <label htmlFor="admin-passkey-input" className="admin-input-label">
-              <span>MASTER PASSKEY</span>
-              <span className="admin-attempt-badge">
-                {rateStatus.remainingAttempts} / 5 attempts remaining
-              </span>
+            <label htmlFor="admin-username-input" className="admin-input-label">
+              <span>ADMINISTRATOR USERNAME</span>
+            </label>
+            <div className="admin-password-input-wrapper">
+              <input
+                id="admin-username-input"
+                ref={usernameInputRef}
+                type="text"
+                value={username}
+                disabled={isLocked || isLoading}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter administrator username..."
+                className="admin-text-input"
+                autoComplete="username"
+              />
+            </div>
+          </div>
+
+          <div className="admin-input-group">
+            <label htmlFor="admin-password-input" className="admin-input-label">
+              <span>PASSWORD</span>
             </label>
 
             <div className="admin-password-input-wrapper">
               <input
-                id="admin-passkey-input"
-                ref={inputRef}
+                id="admin-password-input"
                 type={showPassword ? 'text' : 'password'}
-                value={passkey}
-                disabled={rateStatus.locked || isLoading}
-                onChange={(e) => setPasskey(e.target.value)}
-                placeholder="Enter admin passkey..."
+                value={password}
+                disabled={isLocked || isLoading}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter password..."
                 className="admin-text-input"
                 autoComplete="current-password"
               />
@@ -168,7 +188,7 @@ export const AdminLoginModal = ({ isOpen, onClose, onSuccess }) => {
             </button>
             <button
               type="submit"
-              disabled={rateStatus.locked || isLoading || !passkey.trim()}
+              disabled={isLocked || isLoading || !username.trim() || !password.trim()}
               className="admin-btn-primary"
             >
               {isLoading ? 'VERIFYING...' : 'AUTHENTICATE'}
@@ -180,11 +200,7 @@ export const AdminLoginModal = ({ isOpen, onClose, onSuccess }) => {
         <div className="admin-login-footer">
           <div className="admin-security-feature-item">
             <ShieldCheck size={14} />
-            <span>Constant-Time SHA-256 WebCrypto Verification</span>
-          </div>
-          <div className="admin-default-passkey-hint">
-            <span>Default Passkey: </span>
-            <code>Arteen@2026!Admin</code>
+            <span>Server-Side HttpOnly Session Authorization</span>
           </div>
         </div>
       </div>
