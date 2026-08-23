@@ -111,6 +111,11 @@ export default defineConfig({
   ],
   build: {
     sourcemap: false, // Prevent exposing source code files via browser inspection
+    modulePreload: {
+      resolveDependencies: (_filename, deps) => {
+        return deps.filter(dep => !dep.includes('admin-portal'));
+      }
+    },
     rollupOptions: {
       output: {
         manualChunks: (id) => {
