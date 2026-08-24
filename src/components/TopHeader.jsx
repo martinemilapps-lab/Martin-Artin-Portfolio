@@ -11,12 +11,6 @@ export const TopHeader = ({ onBrandClick }) => {
       >
         MARTIN EMIL ARTEEN
       </div>
-
-      <div className="header-right-group">
-        <div className="header-section">
-          AD CAMPAIGNS
-        </div>
-      </div>
     </header>
   );
 };
